@@ -1,0 +1,7 @@
+{
+    "java.project.referencedLibraries": [
+        "lib/**/*.jar",
+        "c:\\Users\\Adhi\\SmartFoxServer_2X\\SFS2X\\lib\\sfs2x.jar",
+        "c:\\Users\\Adhi\\SmartFoxServer_2X\\SFS2X\\lib\\sfs2x-core.jar"
+    ]
+}
