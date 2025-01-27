@@ -38,6 +38,8 @@ public class SendTransformHandler extends BaseClientRequestHandler {
         send("transform", (ISFSObject)sFSObject, userList, true);    // Use UDP = true
     }
 
+    
+    /*
     // Sending rejected transform message to specified user
     private void sendRejectedTransform(User u) {
         SFSObject sFSObject = new SFSObject();
@@ -45,4 +47,5 @@ public class SendTransformHandler extends BaseClientRequestHandler {
         sFSObject.putInt("id", u.getId());
         send("notransform", (ISFSObject)sFSObject, u, true);    // Use UDP = true
     }
+    //*/
 }
