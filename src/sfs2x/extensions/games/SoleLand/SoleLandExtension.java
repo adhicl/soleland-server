@@ -20,6 +20,7 @@ import sfs2x.extensions.games.SoleLand.Handler.OnUserGoneHandler;
 import sfs2x.extensions.games.SoleLand.Handler.SendAnimHandler;
 import sfs2x.extensions.games.SoleLand.Handler.SendTransformHandler;
 import sfs2x.extensions.games.SoleLand.Handler.SpawnMeHandler;
+import sfs2x.extensions.games.SoleLand.Handler.GetTimeHandler;
 import sfs2x.extensions.games.SoleLand.Model.Player;
 import sfs2x.extensions.games.SoleLand.Model.World;
 import sfs2x.extensions.games.SoleLand.Utils.RoomHelper;
@@ -30,26 +31,34 @@ public class SoleLandExtension extends SFSExtension
 	private class TaskUpdate implements Runnable
     {
         private Instant lastSpawnMole;
-		private World world;
 
 		public TaskUpdate(World world){
-			this.world = world;
+			lastSpawnMole = Instant.now();
 		}
          
         public void run()
         {
-			world.CheckPutDown();
+        	trace("schedule run "+gameStarted);
+        	//if (!gameStarted) return;
+        	try {
+    			World world = getWorld();
+    			
+    			world.CheckPutDown();
 
-			Instant curInstant = Instant.now();
-			if (Duration.between(lastSpawnMole, curInstant).getSeconds() >= 3){
-				world.randomSpawnMole();
-				lastSpawnMole = curInstant;
-			}
+    			Instant curInstant = Instant.now();
+    			if (Duration.between(lastSpawnMole, curInstant).getSeconds() >= 3){
+    				trace("SoleLand Game Extension spawn mole");
+    				world.randomSpawnMole();
+    				lastSpawnMole = curInstant;
+    			}        		
+        	}catch(Exception e) {
+        		e.printStackTrace();
+        	}
         }
     }
 
 	private World world;
-	private User whoseTurn;
+
 	private volatile boolean gameStarted;
 	ScheduledFuture<?> taskHandle;
 	
@@ -62,21 +71,20 @@ public class SoleLandExtension extends SFSExtension
 	 */
 	@Override
 	public void init()
-	{
-		trace("SoleLand Game Extension launched");
+	{		
+	    this.world = new World(this);
 		
 	    addRequestHandler("sendTransform", SendTransformHandler.class);	
 	    addRequestHandler("sendAnim", SendAnimHandler.class);
 	    addRequestHandler("spawnMe", SpawnMeHandler.class);
 	    addRequestHandler("hitMole", HitMoleHandler.class);
+	    addRequestHandler("getTime", GetTimeHandler.class);
 		
 	    addEventHandler(SFSEventType.USER_DISCONNECT, OnUserGoneHandler.class);
 	    addEventHandler(SFSEventType.USER_LEAVE_ROOM, OnUserGoneHandler.class);
 	    addEventHandler(SFSEventType.USER_LOGOUT, OnUserGoneHandler.class);
-
-		SmartFoxServer sfs = SmartFoxServer.getInstance();         
-        // Schedule the task to run every second, with no initial delay
-        taskHandle = sfs.getTaskScheduler().scheduleAtFixedRate(new TaskUpdate(getWorld()), 0, 1, TimeUnit.SECONDS);
+		
+		trace("SoleLand Game Extension launched");
 	}
 	
 	/**
@@ -119,24 +127,27 @@ public class SoleLandExtension extends SFSExtension
 	}
 	
 	/**
-	 * Return active player, accessed by request/event handlers.
-	 */
-	public User getWhoseTurn()
-    {
-	    return whoseTurn;
-    }
-	
-	/**
 	 * Start the game and send a notification to all users in the Room (both players and spectators).
 	 */
 	public void startGame()
 	{
-		if (gameStarted)
-			throw new IllegalStateException("Game is already started");
+		trace("Start game ");
+		
+		//if (gameStarted)
+		//	throw new IllegalStateException("Game is already started");
+				
+		if (!gameStarted) {
+			world.spawnItems();
+
+			SmartFoxServer sfs = SmartFoxServer.getInstance();
+	        // Schedule the task to run every second, with no initial delay
+	        taskHandle = sfs.getTaskScheduler().scheduleAtFixedRate(new TaskUpdate(getWorld()), 0, 1, TimeUnit.SECONDS);
+
+		}
 		
 		// Reset state
 		gameStarted = true;
-
+		
 		SFSObject sFSObject = new SFSObject();
 
 		Room currentRoom = RoomHelper.getCurrentRoom(this);
@@ -149,18 +160,29 @@ public class SoleLandExtension extends SFSExtension
 	 */
 	public void stopGame(int result)
 	{
-		gameStarted = false;
+		trace("Stop game ");
+		if (gameStarted) {
+			
+			trace("stop game "+result);
+			
+			gameStarted = false;
+			
+			taskHandle.cancel(true);
 
-		SFSObject sFSObject = new SFSObject();
-		sFSObject.putInt("result", result);
-		
-		Room currentRoom = RoomHelper.getCurrentRoom(this);
-		List<User> userList = UserHelper.getRecipientsList(currentRoom);
-		send("stopGame", (ISFSObject)sFSObject, userList);
+			SFSObject sFSObject = new SFSObject();
+			sFSObject.putInt("result", result);
+			
+			Room currentRoom = RoomHelper.getCurrentRoom(this);
+			List<User> userList = UserHelper.getRecipientsList(currentRoom);
+			send("stopGame", (ISFSObject)sFSObject, userList);			
+		}
 	}
 	  
 	// Send message to clients when the score value of a player is updated
 	public void sendSpawnMoleUp(int moleIndex) {
+
+		trace("Send spawn mole ");
+		
 		SFSObject sFSObject = new SFSObject();
 		sFSObject.putInt("index", moleIndex);
 
@@ -174,6 +196,7 @@ public class SoleLandExtension extends SFSExtension
 	    SFSObject sFSObject = new SFSObject();
 	    sFSObject.putInt("id", pl.getSfsUser().getId());
 	    sFSObject.putInt("score", pl.getScore());
+	    sFSObject.putInt("position", pl.getPosition());
 	    Room currentRoom = RoomHelper.getCurrentRoom(this);
 	    List<User> userList = UserHelper.getRecipientsList(currentRoom);
 	    send("score", (ISFSObject)sFSObject, userList);

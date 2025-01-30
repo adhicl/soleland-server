@@ -37,6 +37,10 @@ public class World {
 			player = new Player(user, players.size());
 			this.players.add(player);
 			this.extension.clientInstantiatePlayer(player);
+			
+			if (this.players.size() >= 2) {
+				this.extension.startGame();
+			}
 			return true;
 		}
 		
@@ -79,6 +83,7 @@ public class World {
 			randomIndex = rnd.nextInt(16);
 		}
 		moles[randomIndex].ShowUp();
+		this.extension.sendSpawnMoleUp(randomIndex);
 	}
 
 	public void CheckPutDown(){
@@ -90,6 +95,17 @@ public class World {
 	// Process the shot from client
 	public void processHitMole(User fromUser, int moleHit) {
 		Player player = getPlayer(fromUser);
-		player.IncreaseScore();
+		
+		if (moles[moleHit].CheckCanHit()) {
+			extension.trace(" is hit mole");
+			player.IncreaseScore();	
+			extension.updatePlayerScore(player);
+			
+			if (player.getScore() >= 10) {
+				extension.stopGame(player.getPosition());
+			}
+		}else {
+			extension.trace("or if it fails");
+		}
 	}
 }
